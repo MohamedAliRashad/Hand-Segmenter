@@ -1,9 +1,0 @@
-
-Evalulatiopn metrices for segmentation:
-
-    1- mAP: https://kharshit.github.io/blog/2019/09/20/evaluation-metrics-for-object-detection-and-segmentation
-    2- https://www.jeremyjordan.me/evaluating-image-segmentation-models/
-
-Instance segmentation:
-  1- Mask R-CNN: https://kharshit.github.io/blog/2019/08/23/quick-intro-to-instance-segmentation
-  2- Instance seg (papers + code +rank): https://paperswithcode.com/task/instance-segmentation
