@@ -43,7 +43,7 @@ class WildHandsDataset(Dataset):
         labels = []
         for dir_path, sub_dirs, files in os.walk(self.dataset_path):
             for file in files:
-                if (os.path.splitext(file)[1]).lower() in ['.png', '.jpg']:
+                if file.lower().endswith(('.png', '.jpg', '.jpeg')):
                     if 'ask' in file:
                         labels.append(os.path.join(dir_path, file))
                     else:
