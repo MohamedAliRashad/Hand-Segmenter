@@ -29,7 +29,7 @@ class WildHandsDataset(Dataset):
             index (int): Index
 
         Returns:
-            tuple: (image, target) where target is the same image.
+            tuple: (image, target) where target is the mask image.
         """
         img = Image.open(self.img_dirs[idx]).convert("RGB")
         img = self.transform(img) if self.transform else img
