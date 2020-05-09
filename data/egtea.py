@@ -4,9 +4,9 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 
-class OxfordDataset(Dataset):
+class EGATEDataset(Dataset):
     """
-    Oxford Hand Dataset from "http://www.robots.ox.ac.uk/~vgg/data/hands"
+    Extended GTEA Gaze+ Hand Dataset from <http://cbs.ic.gatech.edu/fpv/>
 
     Args:
         dataset_path: should include an image and its annotation.
@@ -29,6 +29,7 @@ class OxfordDataset(Dataset):
             tuple: (image, target) where target is masks of the target classes.
         """
         pass
+
 
 # Testing
 if __name__ == "__main__":
