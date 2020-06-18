@@ -6,12 +6,13 @@ class Trainer:
     Class to handle model Training.
 
     Args:
+    ---
 
         model (callable): Neural Network for training.
         loss_fn (callable): A function to calculate the error. E.g, ``MSE, Cross Entropy``.
         optimizer (callable): Algorithim to backpropgate the loss. E.g, ``SGD, Adam``.
-        device (object, optional): Choice between ``CPU`` & ``GPU`` (default: ``CPU``).
-        save_dir (string, optional): folder to save training steps and final weights.
+        use_gpu (bool, optional): Choice between ``CPU`` & ``GPU`` (default: ``GPU`` if founded).
+        save_dir (string, Path, optional): folder to save training steps and final weights.
         is_progress_bar (bool, optional): enable/disable progress bar
     """
 
@@ -20,7 +21,7 @@ class Trainer:
         model,
         loss_fn,
         optimizer,
-        device=torch.device("cpu"),
+        use_gpu=True,
         save_dir="result",
         is_progress_bar=True,
     ):
