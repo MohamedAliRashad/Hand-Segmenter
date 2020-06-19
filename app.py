@@ -1,12 +1,22 @@
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPainter, QPalette, QPixmap
 from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
-from PyQt5.QtWidgets import (QAction, QFileDialog, QLabel, QMainWindow, QMenu,
-                             QMessageBox, QScrollArea, QSizePolicy, qApp)
+from PyQt5.QtWidgets import (
+    QAction,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QScrollArea,
+    QSizePolicy,
+    qApp,
+)
 from pathlib import Path
 from utils.transforms import cv2qimg
 from utils.view import gray_masking
 import cv2
+
 
 class HandSegmenter(QMainWindow):
     def __init__(self):
@@ -30,8 +40,9 @@ class HandSegmenter(QMainWindow):
         self.directory = None
         self.index = None
         self.image = None
-        self.mask = None
+        self.masks = None
         self.save_dir = None
+        self.offset = 0
 
         self.setCentralWidget(self.scrollArea)
 
@@ -43,21 +54,29 @@ class HandSegmenter(QMainWindow):
 
     def open(self):
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self, 'Choose RGB Image', '',
-                                                  'Images (*.jpeg *.jpg *.bmp *.gif)', options=options)
+        fileName, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose RGB Image",
+            "",
+            "Images (*.jpeg *.jpg *.bmp *.gif)",
+            options=options,
+        )
 
         if fileName:
-            self.directory = sorted(list(Path(fileName).parent.glob('*'+Path(fileName).suffix)))
+            self.directory = sorted(
+                list(Path(fileName).parent.glob("*" + Path(fileName).suffix))
+            )
             self.index = self.directory.index(Path(fileName))
-            
-            self.open_image(fileName)
 
+            self.open_image(fileName)
 
     def open_image(self, file_name):
 
         self.image = QImage(file_name)
         if self.image.isNull():
-            QMessageBox.information(self, "Hand Segmenter", "Cannot load %s." % file_name)
+            QMessageBox.information(
+                self, "Hand Segmenter", "Cannot load %s." % file_name
+            )
             return
 
         self.imageLabel.setPixmap(QPixmap.fromImage(self.image))
@@ -110,34 +129,71 @@ class HandSegmenter(QMainWindow):
         self.updateActions()
 
     def move_right(self):
-        self.index = (self.index + 1)%len(self.directory)
-        self.open_image(str(self.directory[self.index]))
+        self.index = (self.index + 1) % len(self.directory)
+        if self.masks:
+            current_img = cv2.imread(str(self.directory[self.index]))
+            mask = cv2.imread(
+                str(self.masks[self.index - self.offset]), cv2.IMREAD_GRAYSCALE
+            )
+            output = gray_masking(current_img, mask)
+            self.imageLabel.setPixmap(cv2qimg(output))
+        else:
+            self.open_image(str(self.directory[self.index]))
 
     def move_left(self):
-        self.index = (self.index - 1)%len(self.directory)
-        self.open_image(str(self.directory[self.index]))
+        self.index = (self.index - 1) % len(self.directory)
+        if self.masks:
+            current_img = cv2.imread(str(self.directory[self.index]))
+            mask = cv2.imread(
+                str(self.masks[self.index - self.offset]), cv2.IMREAD_GRAYSCALE
+            )
+            output = gray_masking(current_img, mask)
+            self.imageLabel.setPixmap(cv2qimg(output))
+        else:
+            self.open_image(str(self.directory[self.index]))
 
     def add_mask(self):
         options = QFileDialog.Options()
-        fileName, _ = QFileDialog.getOpenFileName(self, 'QFileDialog.getOpenFileName()', '',
-                                                  'Images (*.png)', options=options)
-        
+        fileName, _ = QFileDialog.getOpenFileName(
+            self, "QFileDialog.getOpenFileName()", "", "Images (*.png)", options=options
+        )
+
         if fileName:
             current_img = cv2.imread(str(self.directory[self.index]))
-            mask = cv2.imread(fileName,cv2.IMREAD_GRAYSCALE)
+            mask = cv2.imread(fileName, cv2.IMREAD_GRAYSCALE)
 
             output = gray_masking(current_img, mask)
             self.imageLabel.setPixmap(cv2qimg(output))
 
-            if fileName self.directory
-
-        else:
-            print("File not there!")
+            if Path(fileName).parent != self.directory[0].parent:
+                msg = QMessageBox()
+                msg.setWindowTitle("Link Directories")
+                msg.setText(
+                    "We have noticed different directories for images and masks, Do you want to link them for you ?"
+                )
+                msg.setIcon(QMessageBox.Question)
+                msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                msg.setDefaultButton(QMessageBox.Yes)
+                if msg.exec_() == QMessageBox.Yes:
+                    self.masks = sorted(list(Path(fileName).parent.glob("*" + Path(fileName).suffix)))
+                    if len(self.masks) != len(self.directory):
+                        msg = QMessageBox()
+                        msg.setWindowTitle("Can't assosiate images to masks")
+                        msg.setText(
+                            "Number of masks doesn't equal the number of images, Do you want to continue ?"
+                        )
+                        msg.setIcon(QMessageBox.Question)
+                        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.Abort)
+                        msg.setDefaultButton(QMessageBox.Abort)
+                        if msg.exec_() == QMessageBox.Yes:
+                            self.offset = len(self.directory) - len(self.masks)
+                        else:
+                            self.masks = None
 
     def auto_mask(self):
-        try:    
+        try:
             heatmap = maskIt(self.seg, self.image)
-            final_image = np.where(heatmap==0, self.image, [0,0,255])
+            final_image = np.where(heatmap == 0, self.image, [0, 0, 255])
             self.show_image(final_image, self.name)
         except AttributeError:
             print("HandSegNet Not Configured yet")
@@ -148,58 +204,102 @@ class HandSegmenter(QMainWindow):
         if self.save_dir is None:
             msg = QMessageBox()
             msg.setWindowTitle("Save Directory ?")
-            msg.setText("Do you want to save your masks in the same directory as your images ?")
+            msg.setText(
+                "Do you want to save your masks in the same directory as your images ?"
+            )
             msg.setIcon(QMessageBox.Question)
-            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.Open | QMessageBox.Cancel)
+            msg.setStandardButtons(
+                QMessageBox.Yes | QMessageBox.Open | QMessageBox.Cancel
+            )
             msg.setDefaultButton(QMessageBox.Yes)
             x = msg.exec_()  # this will show our messagebox
             if x == QMessageBox.Yes:
                 self.save_dir = self.directory[0].parent
             elif x == QMessageBox.Open:
-                self.save_dir = Path(QFileDialog.getExistingDirectory(self, "Select Directory"))
+                self.save_dir = Path(
+                    QFileDialog.getExistingDirectory(self, "Select Directory")
+                )
 
         print("Mask will be saved in: {}".format(str(self.save_dir / mask_name)))
-
 
     def color_mask(self):
         # define range of white color in HSV
         # lower_white = np.array([0,0,255])
         # upper_white = np.array([255,255,255])
-    
+
         # Create the mask
         # mask = cv2.inRange(image_mark, lower_white, upper_white)
         pass
 
     def about(self):
-        QMessageBox.about(self, "About Hand Segmenter",
-                          "<p>The <b>Hand Segmenter</b> example shows how to combine "
-                          "QLabel and QScrollArea to display an image. QLabel is "
-                          "typically used for displaying text, but it can also display "
-                          "an image. QScrollArea provides a scrolling view around "
-                          "another widget. If the child widget exceeds the size of the "
-                          "frame, QScrollArea automatically provides scroll bars.</p>"
-                          "<p>The example demonstrates how QLabel's ability to scale "
-                          "its contents (QLabel.scaledContents), and QScrollArea's "
-                          "ability to automatically resize its contents "
-                          "(QScrollArea.widgetResizable), can be used to implement "
-                          "zooming and scaling features.</p>"
-                          "<p>In addition the example shows how to use QPainter to "
-                          "print an image.</p>")
+        QMessageBox.about(
+            self,
+            "About Hand Segmenter",
+            "<p>The <b>Hand Segmenter</b> enables fast segmentation "
+            "for the human hands with datasets desing in mind.</p>"
+            "<p>We were able to handle different sceniores for segmentation "
+            "with easy usage as our primer goal, and feature riching "
+            "as our second. </p>"
+        )
 
     def createActions(self):
         self.openAct = QAction("&Open...", self, shortcut="Ctrl+O", triggered=self.open)
-        self.addMaskAct = QAction("&Add...", self, shortcut="Ctrl+M", enabled=False, triggered=self.add_mask)
-        self.autoMaskAct = QAction("&Generate...", self, shortcut="Space", enabled=False, triggered=self.auto_mask)
-        self.saveMaskAct = QAction("&Save...", self, shortcut="Ctrl+S", enabled=False, triggered=self.save_mask)
-        self.printAct = QAction("&Print...", self, shortcut="Ctrl+P", enabled=False, triggered=self.print_)
+        self.addMaskAct = QAction(
+            "&Add...", self, shortcut="Ctrl+A", enabled=False, triggered=self.add_mask
+        )
+        self.autoMaskAct = QAction(
+            "&Generate...",
+            self,
+            shortcut="Space",
+            enabled=False,
+            triggered=self.auto_mask,
+        )
+        self.saveMaskAct = QAction(
+            "&Save...", self, shortcut="Ctrl+S", enabled=False, triggered=self.save_mask
+        )
+        self.printAct = QAction(
+            "&Print...", self, shortcut="Ctrl+P", enabled=False, triggered=self.print_
+        )
         self.exitAct = QAction("&Exit", self, shortcut="ESC", triggered=self.close)
-        self.movRightAct = QAction("Move &Right", self, shortcut="Right", enabled=False, triggered=self.move_right)
-        self.movLeftAct = QAction("Move &Left", self, shortcut="Left", enabled=False, triggered=self.move_left)
-        self.zoomInAct = QAction("Zoom &In (25%)", self, shortcut="Ctrl++", enabled=False, triggered=self.zoomIn)
-        self.zoomOutAct = QAction("Zoom &Out (25%)", self, shortcut="Ctrl+-", enabled=False, triggered=self.zoomOut)
-        self.normalSizeAct = QAction("&Normal Size", self, shortcut="Ctrl+N", enabled=False, triggered=self.normalSize)
-        self.fitToWindowAct = QAction("&Fit to Window", self, enabled=False, checkable=True, shortcut="Ctrl+F",
-                                      triggered=self.fitToWindow)
+        self.movRightAct = QAction(
+            "Move &Right",
+            self,
+            shortcut="Right",
+            enabled=False,
+            triggered=self.move_right,
+        )
+        self.movLeftAct = QAction(
+            "Move &Left", self, shortcut="Left", enabled=False, triggered=self.move_left
+        )
+        self.zoomInAct = QAction(
+            "Zoom &In (25%)",
+            self,
+            shortcut="Ctrl++",
+            enabled=False,
+            triggered=self.zoomIn,
+        )
+        self.zoomOutAct = QAction(
+            "Zoom &Out (25%)",
+            self,
+            shortcut="Ctrl+-",
+            enabled=False,
+            triggered=self.zoomOut,
+        )
+        self.normalSizeAct = QAction(
+            "&Normal Size",
+            self,
+            shortcut="Ctrl+N",
+            enabled=False,
+            triggered=self.normalSize,
+        )
+        self.fitToWindowAct = QAction(
+            "&Fit to Window",
+            self,
+            enabled=False,
+            checkable=True,
+            shortcut="Ctrl+F",
+            triggered=self.fitToWindow,
+        )
         self.aboutAct = QAction("&About", self, triggered=self.about)
         self.aboutQtAct = QAction("About &Qt", self, triggered=qApp.aboutQt)
 
@@ -251,11 +351,12 @@ class HandSegmenter(QMainWindow):
         self.zoomOutAct.setEnabled(self.scaleFactor > 0.333)
 
     def adjustScrollBar(self, scrollBar, factor):
-        scrollBar.setValue(int(factor * scrollBar.value()
-                               + ((factor - 1) * scrollBar.pageStep() / 2)))
+        scrollBar.setValue(
+            int(factor * scrollBar.value() + ((factor - 1) * scrollBar.pageStep() / 2))
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
     from PyQt5.QtWidgets import QApplication
 
