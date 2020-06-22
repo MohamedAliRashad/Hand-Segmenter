@@ -1,5 +1,6 @@
 import torch
 from tqdm import tqdm
+from texttable import Texttable
 
 
 class Evaluator:
@@ -23,6 +24,10 @@ class Evaluator:
         self.is_progress_bar = is_progress_bar
         self.epsilon = epsilon
         self.device = "cuda" if torch.cuda.is_available() and use_gpu else "cpu"
+        self.mean_iou = 0
+        self.mean_f_score = 0
+        self.table = Texttable()
+        self.table.add_rows([["Dataset", "IoU (Jaccard)", "F1 score (Dice)"]])
 
     def __call__(self, data_loader):
         data_iter = iter(data_loader)
@@ -34,16 +39,39 @@ class Evaluator:
             self.current_intersection = torch.sum(prediction * ground_truth)
             self.total_pixels = torch.sum(ground_truth) + torch.sum(prediction)
             self.current_union = self.total_pixels - self.current_intersection
-            total_iou += self.iou()
-            total_f_score += self.f_score()
-        return total_iou / len(data_loader), total_f_score / len(data_loader)
+            total_iou += self.__iou()
+            total_f_score += self.__f_score()
+        self.mean_iou = total_iou / len(data_loader)
+        self.mean_f_score = total_f_score / len(data_loader)
+        self.dataset_name = type(data_loader.dataset).__name__
+        self.add_row_to_table()
 
-    def iou(self):
+    def __iou(self):
         return self.current_intersection / \
                ((self.current_union - self.current_intersection) + self.epsilon)
 
-    def f_score(self):
+    def __f_score(self):
         return 2 * self.current_intersection / (self.total_pixels + self.epsilon)
+
+    def add_row_to_table(self):
+        self.table.add_rows([["", self.mean_iou, self.mean_f_score]])
+        print(self.table.draw())
+
+    def print_metrics(self):
+        print(self.table.draw())
+
+    @staticmethod
+    def iou(prediction, ground_truth, epsilon=1e-9):
+        intersection = torch.sum(prediction * ground_truth)
+        total_pixels = torch.sum(ground_truth) + torch.sum(prediction)
+        union = total_pixels - intersection
+        return intersection / ((union - intersection) + epsilon)
+
+    @staticmethod
+    def f_score(prediction, ground_truth, epsilon=1e-9):
+        intersection = torch.sum(prediction * ground_truth)
+        total_pixels = torch.sum(ground_truth) + torch.sum(prediction)
+        return 2 * intersection / (total_pixels + epsilon)
 
 
 if __name__ == "__main__":
