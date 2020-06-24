@@ -3,3 +3,5 @@ torchvision
 pillow
 numpy
 pyqt5
+tqdm
+texttable
